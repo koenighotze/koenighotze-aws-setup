@@ -4,3 +4,10 @@
 
 Infrastructure running on AWS.
 
+
+## Bucket list
+
+- Docu
+- Linting
+- Route 53 setup
+- User setup
