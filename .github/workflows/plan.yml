@@ -1,0 +1,83 @@
+name: Plan
+
+on:
+  push:
+    branches: ["main"]
+    tags-ignore: ["**"]
+  workflow_dispatch:
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+  GITHUB_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+
+permissions:
+  id-token: write
+
+jobs:
+  compliance-scan:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run Checkov action
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12.1858.0
+        with:
+          framework: terraform
+          output_format: cli
+          download_external_modules: true
+
+  security-scan:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+      - run: docker run -v ${PWD}:/src aquasec/tfsec:v1.8 /src
+
+  lint:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: terraform-linters/setup-tflint@v2
+        name: Setting up TFLint
+        with:
+          tflint_version: v0.29.0
+      - name: Initializing TFLint
+        run: tflint --init
+      - name: Linting
+        run: tflint -f compact --disable-rule=terraform_module_pinned_source
+
+  qa:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}"
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+      - name: Terraform Validate
+        run: terraform validate -no-color
+
+  plan:
+    runs-on: ubuntu-20.04
+
+    needs:
+      - qa
+      - lint
+      - security-scan
+      - compliance-scan
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+      - name: Init
+        run: terraform init -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}"
+      - name: Plan
+        run: terraform plan -no-color

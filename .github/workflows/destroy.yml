@@ -1,0 +1,25 @@
+name: Destroy
+
+on:
+  workflow_dispatch:
+
+env:
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+  GITHUB_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+
+permissions:
+  id-token: write
+
+jobs:
+  destroy:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+      - name: Init
+        run: terraform init -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}"
+      - name: Apply
+        run: terraform destroy --auto-approve
